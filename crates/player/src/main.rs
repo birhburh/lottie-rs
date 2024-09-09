@@ -1,4 +1,5 @@
-#![feature(path_file_prefix)]
+use std::ffi::OsStr;
+// #![feature(path_file_prefix)]
 use std::fs::{self, File};
 use std::io::{BufWriter, Write};
 use std::path::Path;
@@ -42,13 +43,44 @@ struct Args {
 //     lines.line(Vec3::new(250.0, 0.0, 0.0), Vec3::new(-250.0, 0.0, 0.0), 1.0);
 // }
 
+fn os_str_as_u8_slice(s: &OsStr) -> &[u8] {
+    unsafe { &*(s as *const OsStr as *const [u8]) }
+}
+unsafe fn u8_slice_as_os_str(s: &[u8]) -> &OsStr {
+    // SAFETY: see the comment of `os_str_as_u8_slice`
+    unsafe { &*(s as *const [u8] as *const OsStr) }
+}
+
+fn split_file_at_dot(file: &OsStr) -> (&OsStr, Option<&OsStr>) {
+    let slice = os_str_as_u8_slice(file);
+    if slice == b".." {
+        return (file, None);
+    }
+
+    // The unsafety here stems from converting between &OsStr and &[u8]
+    // and back. This is safe to do because (1) we only look at ASCII
+    // contents of the encoding and (2) new &OsStr values are produced
+    // only from ASCII-bounded slices of existing &OsStr values.
+    let i = match slice[1..].iter().position(|b| *b == b'.') {
+        Some(i) => i + 1,
+        None => return (file, None),
+    };
+    let before = &slice[..i];
+    let after = &slice[i + 1..];
+    unsafe { (u8_slice_as_os_str(before), Some(u8_slice_as_os_str(after))) }
+}
+
+pub fn file_prefix(path: &Path) -> Option<&OsStr> {
+    path.file_name().map(split_file_at_dot).and_then(|(before, _after)| Some(before))
+}
+
 fn main() -> Result<(), Error> {
     let args = Args::parse();
     let path = Path::new(&args.input);
     let mut root_path = path.to_path_buf();
     root_path.pop();
-    let mut filename = path
-        .file_prefix()
+    let mut filename =
+        file_prefix(path)
         .and_then(|name| name.to_str())
         .unwrap()
         .to_string();

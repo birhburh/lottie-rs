@@ -1,6 +1,6 @@
 use std::io::Read;
 
-use crate::model::Model;
+pub use crate::model::Model;
 pub use error::Error;
 use font::FontDB;
 pub use fontkit::tiny_skia_path;

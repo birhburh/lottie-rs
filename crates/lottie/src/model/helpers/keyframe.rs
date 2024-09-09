@@ -1,16 +1,16 @@
-use serde::Deserialize;
+use serde::{Serialize, Deserialize};
 
 use super::{Easing, FromTo, KeyFrame, Value};
 
-#[derive(Deserialize)]
+#[derive(Serialize, Deserialize)]
 #[serde(transparent)]
 pub(super) struct AnimatedHelper {
-    data: TolerantAnimatedHelper,
+    pub(super) data: TolerantAnimatedHelper,
 }
 
-#[derive(Deserialize)]
+#[derive(Serialize, Deserialize)]
 #[serde(untagged)]
-enum TolerantAnimatedHelper {
+pub(super) enum TolerantAnimatedHelper {
     Plain(Value),
     AnimatedHelper(Vec<LegacyTolerantKeyFrame>),
 }
@@ -19,8 +19,8 @@ fn default_none<T>() -> Option<T> {
     None
 }
 
-#[derive(Deserialize, Default, Debug, Clone)]
-struct LegacyKeyFrame<T> {
+#[derive(Serialize, Deserialize, Default, Debug, Clone)]
+pub struct LegacyKeyFrame<T> {
     #[serde(rename = "s")]
     start_value: T,
     #[serde(rename = "e", default = "default_none")]
@@ -37,16 +37,16 @@ struct LegacyKeyFrame<T> {
     hold: bool,
 }
 
-#[derive(Deserialize)]
+#[derive(Serialize, Deserialize)]
 #[serde(untagged)]
-enum LegacyTolerantKeyFrame {
+pub enum LegacyTolerantKeyFrame {
     LegacyKeyFrame(LegacyKeyFrame<Value>),
     TOnly { t: f32 },
 }
 
 impl<'a, T> From<&'a Vec<KeyFrame<T>>> for AnimatedHelper {
-    fn from(_: &'a Vec<KeyFrame<T>>) -> Self {
-        todo!()
+    fn from(value: &'a Vec<KeyFrame<T>>) -> Self {
+        AnimatedHelper {data: TolerantAnimatedHelper::Plain(Value::List(value.iter().map(|v| v.start_frame).collect()))}
     }
 }
 

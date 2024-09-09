@@ -489,6 +489,7 @@ pub enum StrokeDashType {
 pub enum GradientType {
     Linear = 1,
     Radial = 2,
+    Conical = 3, // only in glaxnimate
 }
 
 #[derive(serde_repr::Serialize_repr, serde_repr::Deserialize_repr, Debug, Clone, Copy)]

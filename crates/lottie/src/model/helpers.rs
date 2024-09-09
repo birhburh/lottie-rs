@@ -4,14 +4,14 @@ mod keyframe;
 use std::fmt;
 
 pub(crate) use self::convert::FromTo;
-use self::keyframe::AnimatedHelper;
+use self::keyframe::{AnimatedHelper, TolerantAnimatedHelper};
 
 use super::*;
 use serde::de::{Error, Visitor};
 use serde::ser::SerializeSeq;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(untagged)]
 pub enum Value {
     Primitive(f32),
@@ -108,9 +108,11 @@ impl<'de> serde::Deserialize<'de> for LayerContent {
 
         Ok(
             match value.get("ty").and_then(serde_json::Value::as_u64).unwrap() {
-                0 => LayerContent::PreCompositionRef(
-                    PreCompositionRef::deserialize(value).map_err(D::Error::custom)?,
-                ),
+                0 => {
+                    LayerContent::PreCompositionRef(
+                        PreCompositionRef::deserialize(value).map_err(D::Error::custom)?,
+                    )
+                },
                 1 => {
                     let color = SolidColor::deserialize(value).unwrap();
                     LayerContent::SolidColor {
@@ -155,6 +157,11 @@ impl Serialize for LayerContent {
             // T1(&'a Type1),
             SolidColor { sc: String, sh: f32, sw: f32 },
             Shape { shapes: &'a Vec<ShapeLayer> },
+            PreCompositionRef(&'a PreCompositionRef),
+            // MediaRef(MediaRef),
+            // Empty,
+            // Text(TextAnimationData),
+            // Media(Media),
         }
 
         #[derive(Serialize)]
@@ -182,6 +189,10 @@ impl Serialize for LayerContent {
                     sw: *width,
                 },
             },
+            LayerContent::PreCompositionRef(pre_composition_ref) => TypedLayerContent {
+                t: 0,
+                content: LayerContent_::PreCompositionRef(pre_composition_ref),
+            },
             _ => unimplemented!(),
         };
         msg.serialize(serializer)
@@ -201,18 +212,17 @@ pub fn array_from_keyframes<S, T>(b: &Vec<KeyFrame<T>>, serializer: S) -> Result
 where
     S: Serializer,
 {
-    todo!()
-    // let animated = AnimatedHelper::from(b);
-    // match animated {
-    //     AnimatedHelper::Plain(data) => data.serialize(serializer),
-    //     AnimatedHelper::AnimatedHelper(data) => {
-    //         let mut seq = serializer.serialize_seq(Some(data.len()))?;
-    //         for keyframe in data {
-    //             seq.serialize_element(&keyframe)?;
-    //         }
-    //         seq.end()
-    //     }
-    // }
+    let animated = AnimatedHelper::from(b);
+    match animated.data {
+        TolerantAnimatedHelper::Plain(data) => data.serialize(serializer),
+        TolerantAnimatedHelper::AnimatedHelper(data) => {
+            let mut seq = serializer.serialize_seq(Some(data.len()))?;
+            for keyframe in data {
+                seq.serialize_element(&keyframe)?;
+            }
+            seq.end()
+        }
+    }
 }
 
 pub fn default_vec2_100() -> Animated<Vector2D> {
